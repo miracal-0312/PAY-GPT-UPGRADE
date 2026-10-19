@@ -68,6 +68,43 @@ const PRO_VARIANTS = Object.freeze({
     pro_20x: { checkoutValue: 'chatgptpro', pricingRadioLabel: '20x' }
 });
 
+const PRO_CARD_TITLE = /^(?:ChatGPT\s+)?Pro(?:\s+(?:100|200|500))?$/i;
+const PRO_CARD_ACTION = /^(?:开始订阅|订阅|订阅\s*Pro|升级(?:至|到)?\s*Pro|立即升级|Subscribe(?:\s+to\s+(?:ChatGPT\s+)?Pro)?|Start\s+(?:subscription|subscribing)|Get\s+(?:ChatGPT\s+)?Pro|Upgrade(?:\s+to\s+(?:ChatGPT\s+)?Pro)?|Continue(?:\s+with\s+Pro)?)$/i;
+
+async function findProCardUpgradeButton(page) {
+    const titles = page.getByText(PRO_CARD_TITLE, { exact: true });
+    const matches = [];
+    for (let index = 0; index < await titles.count(); index++) {
+        const title = titles.nth(index);
+        if (!await title.isVisible().catch(() => false)) continue;
+        let card = title;
+        for (let depth = 0; depth < 8; depth++) {
+            card = card.locator('xpath=..');
+            // 不能越过套餐卡片进入包含 Go/Plus 等其他套餐的共同容器。
+            const containsOtherPlan = await card.evaluate((node) =>
+                Array.from(node.querySelectorAll('*')).some((el) =>
+                    /^(?:ChatGPT\s+)?(?:Go|Plus|Free|Business|Team)$|^免费$/i.test(String(el.textContent || '').trim())
+                )
+            );
+            if (containsOtherPlan) break;
+            const buttons = card.getByRole('button', { name: PRO_CARD_ACTION });
+            const visible = [];
+            for (let i = 0; i < await buttons.count(); i++) {
+                const button = buttons.nth(i);
+                if (await button.isVisible().catch(() => false)) visible.push(button);
+            }
+            if (visible.length > 1) throw new Error('Pro 套餐卡片内出现多个订阅按钮，停止以避免误选');
+            if (visible.length === 1) {
+                matches.push(visible[0]);
+                break;
+            }
+        }
+    }
+    if (matches.length !== 1) throw new Error(`无法定位唯一的 Pro 套餐卡片订阅按钮，匹配数量: ${matches.length}`);
+    if (!await matches[0].isEnabled()) throw new Error('Pro 套餐订阅按钮不可用');
+    return matches[0];
+}
+
 const resolvePlanUpgradeTestId = (planType) => {
     const plan = String(planType).trim().toLowerCase();
     const testId = PLAN_UPGRADE_TEST_IDS[plan];
@@ -80,6 +117,9 @@ const resolvePlanUpgradeTestId = (planType) => {
 const getUniqueVisiblePlanButton = async (page, planType) => {
     const plan = String(planType).trim().toLowerCase();
     const testId = resolvePlanUpgradeTestId(plan);
+    if (getProVariant(plan)) {
+        return { plan, testId: 'Pro card / subscription button', button: await findProCardUpgradeButton(page) };
+    }
     const button = page.getByTestId(testId);
     const count = await button.count();
     if (count !== 1) {
@@ -92,6 +132,10 @@ const getUniqueVisiblePlanButton = async (page, planType) => {
 };
 
 const isPricingPlanSelectorVisible = async (page, planType) => {
+    if (typeof planType !== 'string' || getProVariant(planType)) {
+        if (await findProCardUpgradeButton(page).then(() => true).catch(() => false)) return true;
+        if (typeof planType === 'string') return false;
+    }
     const testIds = typeof planType === 'string'
         ? [resolvePlanUpgradeTestId(planType)]
         : [...new Set(Object.values(PLAN_UPGRADE_TEST_IDS))];
@@ -818,6 +862,9 @@ async function openPricingCheckout(page, { region, planType }) {
 }
 
 module.exports = {
+    PRO_CARD_TITLE,
+    PRO_CARD_ACTION,
+    findProCardUpgradeButton,
     PRICING_URL,
     PLAN_UPGRADE_TEST_IDS,
     PRO_VARIANTS,

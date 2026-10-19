@@ -20,6 +20,16 @@ const createPage = ({ count, visible }) => ({
 });
 
 const createPricingReadinessPage = (visibleTestIds) => ({
+    getByText: () => ({
+        count: async () => visibleTestIds.includes('select-plan-button-pro-upgrade') ? 1 : 0,
+        nth: () => ({
+            isVisible: async () => true,
+            locator: () => ({
+                evaluate: async () => false,
+                getByRole: () => ({ count: async () => 1, nth: () => ({ isVisible: async () => true, isEnabled: async () => true }) })
+            })
+        })
+    }),
     getByTestId: (testId) => ({
         count: async () => (visibleTestIds.includes(testId) ? 1 : 0),
         isVisible: async () => visibleTestIds.includes(testId)
@@ -117,15 +127,15 @@ describe('pricing checkout plan button', () => {
         await expect(getUniqueVisiblePlanButton(createPage({ count: 0, visible: false }), 'plus'))
             .rejects
             .toThrow('定价页套餐按钮数量异常: plus / select-plan-button-plus-upgrade / 0');
-        await expect(getUniqueVisiblePlanButton(createPage({ count: 2, visible: true }), 'pro_5x'))
+        await expect(getUniqueVisiblePlanButton(createPage({ count: 2, visible: true }), 'plus'))
             .rejects
-            .toThrow('定价页套餐按钮数量异常: pro_5x / select-plan-button-pro-upgrade / 2');
+            .toThrow('定价页套餐按钮数量异常: plus / select-plan-button-plus-upgrade / 2');
     });
 
     it('rejects an invisible target button', async () => {
-        await expect(getUniqueVisiblePlanButton(createPage({ count: 1, visible: false }), 'pro_20x'))
+        await expect(getUniqueVisiblePlanButton(createPage({ count: 1, visible: false }), 'plus'))
             .rejects
-            .toThrow('定价页套餐按钮不可见: pro_20x / select-plan-button-pro-upgrade');
+            .toThrow('定价页套餐按钮不可见: plus / select-plan-button-plus-upgrade');
     });
 
     it('requires the requested plan button before treating the pricing page as ready', async () => {
