@@ -12,6 +12,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { CHECKOUT_SUBMIT_NAME, waitForCheckoutSubmit } = require('./checkout-submit');
 const {
     isHumanVerificationVisible,
     clearHumanVerification,
@@ -460,6 +461,7 @@ async function fillLocatedInput(target, text) {
  * @returns {Promise<{ success: boolean, error?: string, screenshot?: string, declined?: boolean, canRetryCard?: boolean }>}
  */
 async function completeStripeCardPayment(page, cardInfo, address, options = {}) {
+    const stopBeforeSubmit = options.stopBeforeSubmit === true || process.env.CHECKOUT_DEBUG_ONLY === '1';
     const ELEMENT_TIMEOUT = 45000;
     const cardAttempt = Number(options.cardAttempt) || 1;
     const isCardRetry = cardAttempt > 1;
@@ -613,6 +615,7 @@ async function completeStripeCardPayment(page, cardInfo, address, options = {}) 
         }
 
         // Step 8: Check service agreement checkbox if present
+        if (!stopBeforeSubmit) {
         console.log('[Stripe] Step 8: 检查服务协议...');
         try {
             const checkboxSelectors = [
@@ -643,12 +646,20 @@ async function completeStripeCardPayment(page, cardInfo, address, options = {}) 
             console.log('[Stripe] 未发现服务协议复选框，继续...');
         }
         }
+        }
 
         checkoutDue = await captureCheckoutDueAmount(page, checkoutDue);
         if (checkoutDue?.amount) {
             console.log(`[Stripe] 提交前确认应付: ${checkoutDue.currency || ''} ${checkoutDue.amount}`);
         }
 
+        if (stopBeforeSubmit) {
+            await waitForCheckoutSubmit(page);
+            console.log('[调试] 银行卡及美国账单地址已填写，已在最终付款按钮前停止，未提交付款');
+            return { success: false, debugReady: true, submitted: false, holderName,
+                screenshot: await saveDebugScreenshot(page, 'checkout_debug_filled'),
+                dueAmount: checkoutDue?.amount, dueCurrency: checkoutDue?.currency };
+        }
         const payResult = await finalizeCheckoutPayment(page, holderName);
         if (checkoutDue?.amount) {
             payResult.dueAmount = checkoutDue.amount;
@@ -853,6 +864,7 @@ async function handlePostSubmitPhase(page) {
 }
 
 async function finalizeCheckoutPayment(page, holderName) {
+    if (process.env.CHECKOUT_DEBUG_ONLY === '1') throw new Error('调试模式禁止提交付款');
     console.log('[Stripe] Step 9: 点击订阅/支付...');
     const submitted = await clickCheckoutSubmitButton(page);
     if (!submitted) {
@@ -2469,6 +2481,7 @@ async function fillBillingLine1Strict(page, value) {
 }
 
 async function clickCheckoutSubmitButton(page) {
+    if (process.env.CHECKOUT_DEBUG_ONLY === '1') throw new Error('调试模式禁止点击付款按钮');
     await dismissAddressAutocomplete(page);
     await page.keyboard.press('Escape').catch(() => {});
     await page.evaluate(() => {
@@ -2498,6 +2511,7 @@ async function clickCheckoutSubmitButton(page) {
     };
 
     const strategies = [
+        () => tryClick(page.getByRole('button', { name: CHECKOUT_SUBMIT_NAME }), 'checkout submit'),
         () => tryClick(page.getByRole('button', { name: /^Subscribe$/i }), 'role=Subscribe'),
         () => tryClick(page.getByRole('button', { name: /^订阅$/ }), 'role=订阅'),
         () => tryClick(page.getByRole('button', { name: /subscribe|订阅|pay/i }), 'role=subscribe'),

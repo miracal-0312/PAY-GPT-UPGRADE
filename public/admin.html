@@ -2691,7 +2691,7 @@ http://USER-session-{session}:PASS@proxy.example.com:1000"></textarea>
         <div id="checkout_debug" class="page-view">
             <div class="page-header">
                 <h1>支付链接调试</h1>
-                <p>启动 Playwright 浏览器，注入 Session 后优先调用 Checkout API，失败则走 UI 定价页并打开 Checkout（不执行填卡/订阅，正式开通请走前台 CDK）</p>
+                <p>注入 Session 后优先创建 Checkout，失败回退 UI。临时从卡池取卡并填写美国账单地址，在最终付款按钮前停止，不提交付款。</p>
             </div>
 
             <div class="panel">

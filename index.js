@@ -1,4 +1,4 @@
-const { executePaymentWithRetry } = require('./payment-retry');
+const { executePaymentWithRetry, debugCheckoutCardAndAddress } = require('./payment-retry');
 const { openPricingCheckout } = require('./pricing-checkout');
 const { openApiCheckout } = require('./chatgpt');
 const store = require('./mysql-store');
@@ -55,24 +55,6 @@ const CONFIG = {
 const RECORD_VIDEO = String(process.env.RECORD_VIDEO || '1') !== '0';
 const VIDEO_DIR = path.join(__dirname, 'debug_screenshots', 'videos');
 const VIDEO_TAG = (process.env.JOB_KEY || process.env.CDK_CODE || `${Date.now()}`).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 32) || `${Date.now()}`;
-const DEBUG_PAYMENT_BUTTON_PATTERNS = [/^Subscribe$/i, /^订阅$/, /^立即支付$/, /^Pay now$/i];
-
-const waitForDebugPaymentStep = async (page, timeout = 60000) => {
-    const deadline = Date.now() + timeout;
-    while (Date.now() < deadline) {
-        for (const pattern of DEBUG_PAYMENT_BUTTON_PATTERNS) {
-            const button = page.getByRole('button', { name: pattern });
-            const count = await button.count();
-            if (count === 1 && await button.isVisible({ timeout: 500 })) {
-                console.log(`✅ [调试] 已到达最终付款步骤，检测到提交按钮: ${pattern}`);
-                return;
-            }
-        }
-        await page.waitForTimeout(500);
-    }
-    throw new Error('调试未到达最终付款步骤：未检测到订阅/支付提交按钮');
-};
-
 function buildDebugScreenshotPath(prefix) {
     const subdir = process.env.CHECKOUT_DEBUG_ONLY === '1' ? 'checkout_debug' : 'activation';
     const screenshotDir = path.join(__dirname, 'debug_screenshots', subdir);
@@ -578,7 +560,8 @@ async function run() {
         }
 
         if (debugOnly) {
-            await waitForDebugPaymentStep(page);
+            const debugResult = await debugCheckoutCardAndAddress(page);
+            if (debugResult.screenshot) console.log(`SUCCESS_SCREENSHOT: ${debugResult.screenshot}`);
             const checkoutUrl = checkoutResult?.checkoutUrl || page.url();
             console.log(`🔗 [调试] 支付链接: ${checkoutUrl}`);
             console.log(`CHECKOUT_URL: ${checkoutUrl}`);

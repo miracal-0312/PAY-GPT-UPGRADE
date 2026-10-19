@@ -293,8 +293,28 @@ async function executePaymentWithRetry(page, options) {
 }
 
 module.exports = {
+    debugCheckoutCardAndAddress,
     executePaymentWithRetry,
     isPaymentDeclined,
     MAX_AUTOMATION_ATTEMPTS,
     MAX_CARD_ATTEMPTS
 };
+
+async function debugCheckoutCardAndAddress(page) {
+    const lastUsedId = await store.getAppConfigValue('last_used_address_id', null);
+    const address = await pickBillingAddressForCheckout(lastUsedId ? Number(lastUsedId) : null);
+    const card = await store.reserveCard(`checkout_debug_${process.pid}_${Date.now()}`, []);
+    if (!card) throw new Error('卡池无可用卡，无法调试银行卡填写');
+    try {
+        console.log(`[调试] 临时预留银行卡 ...${String(card.card_number || '').slice(-4)}，使用美国账单地址`);
+        const result = await completeStripeCardPayment(page, {
+            number: card.card_number, expiry: card.card_expiry, cvc: card.card_cvc, holder: card.card_holder
+        }, address, { stopBeforeSubmit: true });
+        if (!result.debugReady || result.submitted !== false) {
+            throw new Error(result.error || '银行卡或账单地址填写调试失败');
+        }
+        return result;
+    } finally {
+        await store.releaseCard(card.id);
+    }
+}
