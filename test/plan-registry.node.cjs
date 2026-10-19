@@ -16,7 +16,7 @@ test('maps all four plans and preserves legacy reads without accepting legacy wr
 });
 
 test('selects each actual Pro checkout value and rejects unconfirmed selections', async () => {
-    const sandbox = { module: { exports: {} }, console, require: () => ({}) };
+    const sandbox = { module: { exports: {} }, console, require: (name) => name === './checkout-pro-option' ? require('../checkout-pro-option') : {} };
     vm.runInNewContext(fs.readFileSync(require.resolve('../pricing-checkout'), 'utf8'), sandbox);
     const pricing = sandbox.module.exports;
     for (const type of ['pro100', 'pro200', 'pro500']) {

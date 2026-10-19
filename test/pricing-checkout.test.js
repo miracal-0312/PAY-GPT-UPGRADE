@@ -56,6 +56,7 @@ const createProPricingPage = () => {
 const createProCheckoutPage = ({ count = 1, visible = true } = {}) => {
     const option = {
         waitFor: async () => {},
+        filter: () => ({ count: async () => 0 }),
         selected: false,
         count: async () => count,
         isVisible: async () => visible,
@@ -70,7 +71,8 @@ const createProCheckoutPage = ({ count = 1, visible = true } = {}) => {
     return {
         page: {
             locator: () => option,
-            waitForTimeout: async () => {}
+            getByRole: () => ({ count: async () => 0 }),
+            waitForTimeout: async () => { if (count === 0) throw new Error('Checkout Pro 档位加载超时'); }
         },
         option
     };
@@ -161,6 +163,6 @@ describe('pricing checkout plan button', () => {
 
         await expect(selectProVariantOnCheckoutPage(checkout.page, 'pro_20x'))
             .rejects
-            .toThrow('Checkout Pro 档位按钮数量异常: pro_20x / chatgptpro / 0');
+            .toThrow('Checkout Pro 档位加载超时');
     });
 });

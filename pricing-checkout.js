@@ -3,6 +3,7 @@
 const { getRegionConfig } = require('./region-config');
 const { assertChatGptLoggedIn } = require('./session-auth');
 const { clearHumanVerification } = require('./human-verification');
+const { resolveProCheckoutOption, isProOptionSelected } = require('./checkout-pro-option');
 
 const PRICING_URL = 'https://chatgpt.com/#pricing';
 
@@ -200,8 +201,7 @@ const selectProVariantOnCheckoutPage = async (page, planType) => {
         return;
     }
 
-    const option = page.locator(`#${variant.checkoutValue}`);
-    await option.waitFor({ state: 'visible', timeout: 15000 });
+    const { option, byId } = await resolveProCheckoutOption(page, variant.checkoutValue);
     const count = await option.count();
     if (count !== 1) {
         throw new Error(`Checkout Pro 档位按钮数量异常: ${plan} / ${variant.checkoutValue} / ${count}`);
@@ -211,15 +211,14 @@ const selectProVariantOnCheckoutPage = async (page, planType) => {
     }
     const role = await option.getAttribute('role');
     const value = await option.getAttribute('value');
-    if (role !== 'radio' || value !== variant.checkoutValue) {
+    if ((byId && (role !== 'radio' || value !== variant.checkoutValue))
+        || (value && value !== variant.checkoutValue)) {
         throw new Error(`Checkout Pro 档位标识不匹配: ${plan} / ${variant.checkoutValue}`);
     }
 
     await option.click({ timeout: 10000 });
     await page.waitForTimeout(300);
-    const ariaChecked = await option.getAttribute('aria-checked');
-    const dataState = await option.getAttribute('data-state');
-    if (ariaChecked !== 'true' || dataState !== 'checked') {
+    if (!await isProOptionSelected(option)) {
         throw new Error(`Checkout Pro 档位未确认选中: ${plan} / ${variant.checkoutValue}`);
     }
     console.log(`✅ [步骤] Checkout 已确认 Pro 档位: ${plan} (${variant.checkoutValue})`);

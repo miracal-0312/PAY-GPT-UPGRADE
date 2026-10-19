@@ -2,7 +2,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
-const sandbox = { module: { exports: {} }, console, require: () => ({}) };
+const sandbox = { module: { exports: {} }, console, require: (name) => name === './checkout-pro-option' ? require('../checkout-pro-option') : {} };
 vm.runInNewContext(fs.readFileSync(require.resolve('../pricing-checkout'), 'utf8'), sandbox);
 const { findProCardUpgradeButton, PRO_CARD_ACTION, PRO_CARD_TITLE, isPricingPlanSelectorVisible } = sandbox.module.exports;
 
