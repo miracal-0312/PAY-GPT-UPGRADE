@@ -58,7 +58,7 @@ const PLAN_UPGRADE_TEST_IDS = Object.freeze({
 });
 
 const PRICING_PAGE_INITIAL_WAIT_MS = 5000;
-const PRICING_PAGE_READY_TIMEOUT_MS = 10000;
+const PRICING_PAGE_READY_TIMEOUT_MS = 30000;
 
 const PRO_VARIANTS = Object.freeze({
     pro100: { checkoutValue: 'chatgptprolite', pricingRadioLabel: null },
@@ -69,7 +69,7 @@ const PRO_VARIANTS = Object.freeze({
 });
 
 const PRO_CARD_TITLE = /^(?:ChatGPT\s+)?Pro(?:\s+(?:100|200|500))?$/i;
-const PRO_CARD_ACTION = /^(?:开始订阅|订阅|订阅\s*Pro|升级(?:至|到)?\s*Pro|立即升级|Subscribe(?:\s+to\s+(?:ChatGPT\s+)?Pro)?|Start\s+(?:subscription|subscribing)|Get\s+(?:ChatGPT\s+)?Pro|Upgrade(?:\s+to\s+(?:ChatGPT\s+)?Pro)?|Continue(?:\s+with\s+Pro)?)$/i;
+const PRO_CARD_ACTION = /^(?:开始订阅|订阅|订阅\s*Pro|升级(?:至|到)?\s*Pro|立即升级|Subscribe(?:\s+to\s+(?:ChatGPT\s+)?Pro)?|Start\s+(?:subscription|subscribing)|Get\s+started|Get\s+(?:ChatGPT\s+)?Pro|Upgrade(?:\s+to\s+(?:ChatGPT\s+)?Pro)?|Continue(?:\s+with\s+Pro)?)$/i;
 
 async function findProCardUpgradeButton(page) {
     const titles = page.getByText(PRO_CARD_TITLE, { exact: true });
