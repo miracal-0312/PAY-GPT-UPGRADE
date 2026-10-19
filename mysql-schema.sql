@@ -161,6 +161,7 @@ CREATE TABLE IF NOT EXISTS tax_free_addresses (
 
 CREATE TABLE IF NOT EXISTS proxy_assets (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    country CHAR(2) NOT NULL DEFAULT '',
     proxy_url TEXT NOT NULL COMMENT '完整代理 URL，支持 {session}',
     proxy_url_hash CHAR(64) NOT NULL COMMENT 'URL SHA256，用于去重',
     label VARCHAR(128) NOT NULL DEFAULT '' COMMENT '可选备注',

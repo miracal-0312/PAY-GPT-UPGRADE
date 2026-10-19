@@ -1530,7 +1530,7 @@ app.post('/api/admin/proxy/test', authenticateAdmin, async (req, res) => {
             const map = new Map(saved.map((item) => [item.id, item]));
             targets = ids.map((id) => {
                 const row = map.get(id);
-                return row ? { id, proxy_url: row.proxy_url } : null;
+                return row ? { id, proxy_url: row.proxy_url, country: row.country } : null;
             }).filter(Boolean);
         } else {
             targets = rawProxies.map((proxy_url) => ({ id: null, proxy_url }));
@@ -1544,7 +1544,7 @@ app.post('/api/admin/proxy/test', authenticateAdmin, async (req, res) => {
         }
 
         const results = await Promise.all(targets.map(async (target) => {
-            const result = await testProxyUrl(target.proxy_url);
+            const result = await testProxyUrl(target.proxy_url, target.country ? { expectedCountry: target.country } : {});
             if (persist && target.id) {
                 await store.updateProxyAssetCheck(target.id, result);
             }
@@ -2831,7 +2831,11 @@ app.post('/api/admin/proxies', async (req, res) => {
     try {
         await ensureStoreReady();
         const input = req.body?.proxies ?? req.body?.proxy_url ?? req.body?.proxy ?? '';
-        const result = await store.addProxyAssets(input);
+        const country = String(req.body?.country || '').trim().toUpperCase();
+        if (!require('./region-config').isSupportedRegion(country)) {
+            return res.status(400).json({ success: false, error: '保存代理前请选择国家' });
+        }
+        const result = await store.addProxyAssets(input, country);
         if (!result.success) {
             return res.status(400).json(result);
         }
@@ -2845,6 +2849,10 @@ app.put('/api/admin/proxies/:id', async (req, res) => {
     try {
         await ensureStoreReady();
         const id = req.params.id;
+        if (Object.prototype.hasOwnProperty.call(req.body || {}, 'country')) {
+            const result = await store.setProxyAssetCountry(id, req.body.country);
+            return res.status(result.success ? 200 : 400).json(result);
+        }
         if (Object.prototype.hasOwnProperty.call(req.body || {}, 'is_active')) {
             const result = await store.setProxyAssetActive(id, Boolean(req.body.is_active));
             if (!result.success) {
@@ -2865,7 +2873,7 @@ app.post('/api/admin/proxies/:id/test', async (req, res) => {
         if (!row) {
             return res.status(404).json({ success: false, error: '代理不存在' });
         }
-        const result = await testProxyUrl(row.proxy_url);
+        const result = await testProxyUrl(row.proxy_url, row.country ? { expectedCountry: row.country } : {});
         await store.updateProxyAssetCheck(row.id, result);
         res.json({ success: true, id: row.id, ...result });
     } catch (error) {
@@ -3218,7 +3226,7 @@ function spawnCheckoutDebugWorker({ task, token, sessionRaw, planType, region, p
     (async () => {
         const checkoutScript = path.join(__dirname, 'index.js');
         try {
-            const proxy = await store.getActiveProxy();
+            const proxy = await store.getActiveProxy(region);
             const hcaptchaCfg = await store.getHcaptchaConfig();
             const { env: hcaptchaEnv } = buildHcaptchaEnvFromConfig(hcaptchaCfg);
             const runtimeEnv = {
@@ -3350,7 +3358,7 @@ async function runGptApiWorker({ task, token, session, cdk, planType }) {
         }
         logTask(jobKey, 'Session 本機格式／有效期檢查通過；上游將於代充任務中驗證登入狀態');
 
-        const proxy = await store.getActiveProxy();
+        const proxy = await store.getActiveProxy(cfg.country || 'PH');
         logTask(jobKey, proxy
             ? `第三方 API 协议代理 ${maskProxyForLog(proxy)}`
             : '第三方 API 使用平台启用代理池');
@@ -3570,7 +3578,8 @@ function spawnActivationWorker({ task, token, sessionRaw, cdk, cdkDetails, clien
                     cdkCode: cdk
                 });
 
-                const proxy = await store.getActiveProxy();
+                const paymentRegion = await store.getPaymentRegion();
+                const proxy = await store.getActiveProxy(paymentRegion);
                 const hcaptchaCfg = await store.getHcaptchaConfig();
                 const { env: hcaptchaEnv } = buildHcaptchaEnvFromConfig(hcaptchaCfg);
                 const runtimeEnv = {
@@ -3581,6 +3590,7 @@ function spawnActivationWorker({ task, token, sessionRaw, cdk, cdkDetails, clien
                     CHATGPT_SESSION_JSON: String(sessionRaw || '').startsWith('{') ? sessionRaw : '',
                     CDK_CODE: cdk,
                     CDK_PLAN_TYPE: cdkDetails.plan_type || 'plus',
+                    PAYMENT_REGION_OVERRIDE: paymentRegion,
                     PROXY: proxy
                 };
 

@@ -62,6 +62,26 @@ async function testProxyUrl(raw, options = {}) {
     }
 
     const timeout = Math.max(3000, Number(options.timeoutMs) || 12000);
+    if (options.expectedCountry) {
+        try {
+            const response = await axios.get('https://ipinfo.io/json', {
+                httpsAgent: agent, httpAgent: agent, proxy: false, timeout,
+                validateStatus: () => true
+            });
+            const info = response.data;
+            const country = String(info?.country || '').toUpperCase();
+            if (response.status !== 200 || !info?.ip || !/^[A-Z]{2}$/.test(country)) {
+                return { ok: false, error: '无法查询代理出口国家', latencyMs: Date.now() - t0 };
+            }
+            return { ok: country === options.expectedCountry, country, ip: info.ip,
+                error: country === options.expectedCountry ? '' : `出口国家不匹配: 期望=${options.expectedCountry}, 实际=${country}`,
+                latencyMs: Date.now() - t0, probedVia: 'https://ipinfo.io/json' };
+        } catch (_) {
+            return { ok: false, error: '代理出口国家查询失败', latencyMs: Date.now() - t0 };
+        } finally {
+            agent.destroy();
+        }
+    }
     let lastErr = '';
     for (const probeUrl of PROBE_URLS) {
         try {

@@ -1,13 +1,15 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { selectRegionProxy } = require('./proxy-region-routing');
 const mysql = require('mysql2/promise');
 const {
     substituteProxySession,
     hashProxyUrl,
     parseProxyMeta,
     normalizeProxyLines,
-    maskProxyUrl
+    maskProxyUrl,
+    testProxyUrl
 } = require('./proxy-pool');
 const { normalizeCaptchaPlatformApiUrl, DEFAULT_API_URL: CAPTCHA_PLATFORM_DEFAULT_URL, resolveCaptchaPlatformCredentials } = require('./captcha-platform');
 
@@ -427,6 +429,7 @@ async function ensureLegacyColumns() {
     await ensureColumn('proxy_assets', 'proxy_url', 'TEXT NOT NULL');
     await ensureColumn('proxy_assets', 'proxy_url_hash', "CHAR(64) NOT NULL DEFAULT ''");
     await ensureColumn('proxy_assets', 'label', "VARCHAR(128) NOT NULL DEFAULT ''");
+    await ensureColumn('proxy_assets', 'country', "CHAR(2) NOT NULL DEFAULT ''");
     await ensureColumn('proxy_assets', 'protocol', "VARCHAR(16) NOT NULL DEFAULT ''");
     await ensureColumn('proxy_assets', 'host', "VARCHAR(255) NOT NULL DEFAULT ''");
     await ensureColumn('proxy_assets', 'is_active', 'TINYINT(1) NOT NULL DEFAULT 1');
@@ -1817,6 +1820,7 @@ function formatProxyAssetRow(row) {
         proxy_url: String(row.proxy_url || ''),
         proxy_url_masked: maskProxyUrl(row.proxy_url),
         label: String(row.label || ''),
+        country: String(row.country || ''),
         protocol: String(row.protocol || ''),
         host: String(row.host || ''),
         is_active: Number(row.is_active) === 1,
@@ -1845,7 +1849,11 @@ async function listProxyAssets() {
     return rows.map(formatProxyAssetRow);
 }
 
-async function addProxyAssets(input) {
+async function addProxyAssets(input, country = '') {
+    country = String(country).trim().toUpperCase();
+    if (country && !require('./region-config').isSupportedRegion(country)) {
+        return { success: false, error: '请选择支持的代理国家' };
+    }
     const lines = normalizeProxyLines(input);
     if (!lines.length) {
         return { success: false, error: '未提供代理 URL' };
@@ -1867,9 +1875,9 @@ async function addProxyAssets(input) {
         }
         const meta = parseProxyMeta(line);
         const result = await runExecute(
-            `INSERT INTO proxy_assets (proxy_url, proxy_url_hash, protocol, host, is_active, sort_order)
-             VALUES (?, ?, ?, ?, 1, ?)`,
-            [line, urlHash, meta.protocol || '', meta.host || '', Date.now() % 1000000]
+            `INSERT INTO proxy_assets (proxy_url, proxy_url_hash, protocol, host, country, is_active, sort_order)
+             VALUES (?, ?, ?, ?, ?, 1, ?)`,
+            [line, urlHash, meta.protocol || '', meta.host || '', country, Date.now() % 1000000]
         );
         added += 1;
         ids.push(Number(result.insertId));
@@ -1904,6 +1912,15 @@ async function setProxyAssetActive(id, isActive) {
         return { success: false, error: '代理不存在' };
     }
     return { success: true, is_active: Boolean(isActive) };
+}
+
+async function setProxyAssetCountry(id, country) {
+    const code = String(country || '').trim().toUpperCase();
+    if (!require('./region-config').isSupportedRegion(code)) {
+        return { success: false, error: '请选择支持的代理国家' };
+    }
+    const result = await runExecute(`UPDATE proxy_assets SET country = ?, last_check_ok = NULL WHERE id = ?`, [code, Number(id)]);
+    return result.affectedRows ? { success: true } : { success: false, error: '代理不存在' };
 }
 
 async function updateProxyAssetCheck(id, checkResult) {
@@ -1967,7 +1984,21 @@ async function migrateLegacyProxyConfig() {
 
 // 只取代理，不占用手机/卡资产；适合注册/协议提取这种只用代理的子流程
 // 支持 {session} 占位符；每次调用替换为新的随机 sticky session ID
-async function getActiveProxy() {
+async function getActiveProxy(region) {
+    if (region) {
+        const candidates = await runQuery(
+            `SELECT proxy_url, country FROM proxy_assets WHERE is_active = 1 AND country = ? ORDER BY RAND() LIMIT 5`,
+            [String(region).toUpperCase()]
+        );
+        return selectRegionProxy(candidates, region, {
+            prepare: substituteProxySession,
+            probe: testProxyUrl,
+            onSelected: (row) => runExecute(
+                `UPDATE proxy_assets SET usage_count = usage_count + 1 WHERE proxy_url = ?`,
+                [row.proxy_url]
+            ).catch(() => {})
+        });
+    }
     const rows = await runQuery(
         `SELECT proxy_url
          FROM proxy_assets
@@ -3837,6 +3868,7 @@ module.exports = {
     getActiveProxy,
     listProxyAssets,
     addProxyAssets,
+    setProxyAssetCountry,
     deleteProxyAsset,
     setProxyAssetActive,
     updateProxyAssetCheck,

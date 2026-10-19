@@ -2407,8 +2407,17 @@
                     <h2 class="panel-title">添加代理</h2>
                 </div>
                 <p style="font-size: 13px; color: var(--text-dim); margin-bottom: 12px;">
-                    粘贴一条或多条代理 URL（一行一条），点保存后立即写入代理池并在下方列表显示。
+                    先选择代理国家，再粘贴代理 URL（一行一条）。支付任务只从对应国家分类抽取，并验证实际出口国家。旧代理请在列表中选择国家。
                 </p>
+                <label for="proxy_add_country">代理国家</label>
+                <select id="proxy_add_country" class="form-select" style="margin:8px 0 14px;">
+                    <option value="">请选择国家</option>
+                    <option value="PH">菲律宾 (PH)</option>
+                    <option value="US">美国 (US)</option>
+                    <option value="SG">新加坡 (SG)</option>
+                    <option value="MY">马来西亚 (MY)</option>
+                    <option value="CL">智利 (CL)</option>
+                </select>
                 <textarea id="proxy_add_input" rows="6" class="asset-input" style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace; min-height: 130px; resize: vertical;"
                     placeholder="一行一条，例如：
 http://user:pass@host:port
@@ -2447,6 +2456,7 @@ http://USER-session-{session}:PASS@proxy.example.com:1000"></textarea>
                             <tr>
                                 <th width="72px" style="text-align:center">启用</th>
                                 <th width="96px" style="text-align:center">活跃检测</th>
+                                <th width="140px">国家分类</th>
                                 <th width="140px">出口 IP</th>
                                 <th width="88px" style="text-align:center">延迟</th>
                                 <th width="88px" style="text-align:center">协议</th>
@@ -2455,7 +2465,7 @@ http://USER-session-{session}:PASS@proxy.example.com:1000"></textarea>
                             </tr>
                         </thead>
                         <tbody id="proxy_pool_body">
-                            <tr><td colspan="7">加载中...</td></tr>
+                            <tr><td colspan="8">加载中...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -2477,7 +2487,7 @@ http://USER-session-{session}:PASS@proxy.example.com:1000"></textarea>
                 <div style="font-size:14px; line-height:1.85; color:var(--text-dim);">
                     <p style="margin:0 0 12px;">浏览器池 = 常驻 Chromium + 本地 Profile 缓存。任务通过 CDP 接入，<strong>每单仍独立 Context</strong>（不串 Session）。每槽约 <strong>400–550 MB</strong> 内存。</p>
                     <p style="margin:0 0 12px; padding:10px 12px; background:rgba(251,191,36,0.08); border-radius:8px; border:1px solid rgba(251,191,36,0.2);">
-                        <strong>代理：</strong>池内槽位<strong>不绑定</strong>代理。每单任务启动时，从「代理池」随机抽一条启用代理，写入该单的 <code>Context</code>（见运行日志 <code>proxy=yes</code>）。
+                        <strong>代理：</strong>池内槽位<strong>不绑定</strong>代理。每单任务按支付国家，从「代理池」对应国家分类随机抽取启用代理，验证出口国家后写入该单的 <code>Context</code>。
                         这样不同任务可用不同 IP，避免多账号共用一个住宅 IP。代理在左侧「代理池」管理，与浏览器池分开配置。
                     </p>
                     <table style="width:100%; border-collapse:collapse; font-size:13px;">
@@ -5523,6 +5533,25 @@ http://USER-session-{session}:PASS@proxy.example.com:1000"></textarea>
 
         let proxyPoolList = [];
 
+        function proxyCountryOptions(country) {
+            return [['', '未分类'], ['PH', '菲律宾'], ['US', '美国'], ['SG', '新加坡'], ['MY', '马来西亚'], ['CL', '智利']]
+                .map(([code, label]) => `<option value="${code}" ${country === code ? 'selected' : ''}>${label}${code ? ` (${code})` : ''}</option>`).join('');
+        }
+
+        async function changeProxyCountry(id, country) {
+            if (!country) { await loadProxyPool(); return; }
+            try {
+                const res = await authFetch(`/api/admin/proxies/${id}`, {
+                    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ country })
+                });
+                const data = await res.json();
+                if (!res.ok || !data.success) throw new Error(data.error || data.message || '国家分类保存失败');
+                showMessage('代理国家分类已保存', 'success');
+            } catch (error) { showMessage(error.message, 'error'); }
+            await loadProxyPool();
+        }
+
         function renderProxyCheckBadge(item) {
             if (item.last_check_ok === true) {
                 return '<span class="status-badge status-success">活跃</span>';
@@ -5539,7 +5568,7 @@ http://USER-session-{session}:PASS@proxy.example.com:1000"></textarea>
             if (!tbody) return;
 
             if (!proxyPoolList.length) {
-                tbody.innerHTML = '<tr><td colspan="7">暂无代理，请在上方粘贴 URL 后点击「保存到代理池」</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="8">暂无代理，请在上方选择国家并保存代理</td></tr>';
                 if (summary) summary.textContent = '共 0 条，启用 0 条';
                 return;
             }
@@ -5559,6 +5588,7 @@ http://USER-session-{session}:PASS@proxy.example.com:1000"></textarea>
                             </label>
                         </td>
                         <td style="text-align:center;" id="proxy_check_${item.id}">${renderProxyCheckBadge(item)}</td>
+                        <td><select class="form-select" onchange="changeProxyCountry(${item.id}, this.value)">${proxyCountryOptions(item.country || '')}</select></td>
                         <td id="proxy_ip_${item.id}">${ipCell}</td>
                         <td style="text-align:center;" id="proxy_lat_${item.id}">${latency}</td>
                         <td style="text-align:center;"><code>${escapeHtml(item.protocol || '-')}</code></td>
@@ -5769,6 +5799,8 @@ http://USER-session-{session}:PASS@proxy.example.com:1000"></textarea>
         }
 
         async function saveProxyPool() {
+            const country = document.getElementById('proxy_add_country')?.value || '';
+            if (!country) { showMessage('请先选择代理国家', 'warning'); return; }
             const input = document.getElementById('proxy_add_input');
             const hint = document.getElementById('proxy_add_hint');
             const lines = String(input?.value || '').trim();
@@ -5781,7 +5813,7 @@ http://USER-session-{session}:PASS@proxy.example.com:1000"></textarea>
                 const res = await authFetch('/api/admin/proxies', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ proxies: lines.split(/\r?\n/) })
+                    body: JSON.stringify({ proxies: lines.split(/\r?\n/), country })
                 });
                 const data = await res.json();
                 if (!res.ok || !data.success) {

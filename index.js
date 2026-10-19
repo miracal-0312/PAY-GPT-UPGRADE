@@ -7,7 +7,7 @@ const { installChatGptSession, bootstrapChatGptSession } = require('./session-au
 const { cancelAutoRenew } = require('./subscription-check');
 const { connectTaskBrowser, applyCdpEnv, closeTaskBrowser } = require('./browser-runtime');
 const { preparePlaywrightProxy } = require('./playwright-proxy');
-const { assertChileRequestCountry } = require('./proxy-region-check');
+const { assertRequestCountry } = require('./proxy-region-check');
 const fs = require('fs');
 const path = require('path');
 
@@ -207,6 +207,8 @@ async function run() {
     let page = null;
     let paymentSucceeded = false;
 
+    const paymentRegion = String(CONFIG.paymentRegionOverride || '').trim().toUpperCase()
+        || await store.getPaymentRegion();
     const preparedProxy = await preparePlaywrightProxy(CONFIG.proxy);
     proxyCleanup = preparedProxy.cleanup;
     const proxyConfig = preparedProxy.proxyConfig;
@@ -229,8 +231,6 @@ async function run() {
     const matched = realUserAgent.match(/Chrome\/(\d+)/);
     const chromeMajor = matched ? Number(matched[1]) : 147;
 
-    const paymentRegion = String(CONFIG.paymentRegionOverride || '').trim().toUpperCase()
-        || await store.getPaymentRegion();
     const regionCfg = getRegionConfig(paymentRegion);
     const browserProfile = getRegionBrowserProfile(paymentRegion);
 
@@ -541,7 +541,7 @@ async function run() {
         }
 
         // --- Phase 2: API 创建 Checkout（注入账单地区），失败时回退 UI 定价页 ---
-        await assertChileRequestCountry(context, billingCountry);
+        await assertRequestCountry(context, billingCountry);
         const checkoutMode = String(process.env.CHECKOUT_MODE || 'api').toLowerCase();
         let checkoutOpened = false;
         let checkoutResult = null;

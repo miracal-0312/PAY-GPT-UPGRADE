@@ -1,6 +1,6 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { assertChileRequestCountry } = require('../proxy-region-check');
+const { assertChileRequestCountry, assertRequestCountry } = require('../proxy-region-check');
 
 const contextFor = (info, status = 200) => ({ request: { get: async (url, options) => {
     assert.equal(url, 'https://ipinfo.io/json');
@@ -21,4 +21,8 @@ test('stops on HTTP errors, incomplete responses and network errors', async () =
 });
 test('leaves other billing regions unchanged', async () => {
     await assertChileRequestCountry({}, 'PH');
+});
+test('checks other payment regions through the general validator', async () => {
+    await assertRequestCountry(contextFor({ ip: '203.0.113.1', country: 'US' }), 'US');
+    await assert.rejects(assertRequestCountry(contextFor({ ip: '203.0.113.1', country: 'PH' }), 'US'), /支付地区=US/);
 });
