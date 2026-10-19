@@ -1,5 +1,5 @@
 const { executePaymentWithRetry, debugCheckoutCardAndAddress } = require('./payment-retry');
-const { openPricingCheckout } = require('./pricing-checkout');
+const { openPricingCheckout, selectProVariantOnCheckoutPage } = require('./pricing-checkout');
 const { openApiCheckout } = require('./chatgpt');
 const store = require('./mysql-store');
 const { getRegionConfig, getRegionBrowserProfile } = require('./region-config');
@@ -505,6 +505,7 @@ async function run() {
         if (!planType) {
             planType = 'plus';
         }
+        planType = require('./plan-registry').normalizePlanType(planType);
 
         // Resolve region and currency (与浏览器 profile 一致)
         const billingCountry = paymentRegion;
@@ -559,6 +560,9 @@ async function run() {
             checkoutResult = { checkoutUrl: page.url() };
         }
 
+        if (checkoutMode !== 'ui' && checkoutOpened) {
+            await selectProVariantOnCheckoutPage(page, planType);
+        }
         if (debugOnly) {
             const debugResult = await debugCheckoutCardAndAddress(page);
             if (debugResult.screenshot) console.log(`SUCCESS_SCREENSHOT: ${debugResult.screenshot}`);

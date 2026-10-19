@@ -2618,8 +2618,9 @@ app.get('/api/admin/checkout/plans', async (req, res) => {
             plans: store.PLAN_NAME_MAP,
             resolved: {
                 plus: store.resolvePlanName('plus'),
-                pro_5x: store.resolvePlanName('pro_5x'),
-                pro_20x: store.resolvePlanName('pro_20x')
+                pro100: store.resolvePlanName('pro100'),
+                pro200: store.resolvePlanName('pro200'),
+                pro500: store.resolvePlanName('pro500')
             },
             region: regionCode,
             currency: config.currency,
@@ -2649,7 +2650,7 @@ app.post('/api/admin/checkout/generate', async (req, res) => {
             return res.status(400).json({ success: false, error: tokenCheck.message });
         }
 
-        const planType = String(body.plan_type || 'plus').trim();
+        const planType = require('./plan-registry').normalizePlanType(body.plan_type || 'plus');
         const planNameOverride = body.plan_name ? String(body.plan_name).trim() : '';
         const resolvedPlanName = planNameOverride || store.resolvePlanName(planType);
         const regionCode = String(body.country || body.region || await store.getPaymentRegion()).toUpperCase();
@@ -3305,7 +3306,9 @@ function spawnCheckoutDebugWorker({ task, token, sessionRaw, planType, region, p
 const GPT_API_PLAN_MAP = Object.freeze({ plus: 'plus', pro_5x: 'pro5x', pro_20x: 'pro20x' });
 
 function mapGptApiPlanKey(planType) {
-    return GPT_API_PLAN_MAP[String(planType || '').trim()] || 'plus';
+    const key = GPT_API_PLAN_MAP[String(planType || '').trim()];
+    if (!key) throw new Error(`第三方代充接口尚未配置套餐代码: ${planType}；请使用本地 Checkout 流程`);
+    return key;
 }
 
 function parseCardExpiry(value) {

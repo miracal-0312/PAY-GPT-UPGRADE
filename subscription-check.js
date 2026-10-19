@@ -12,6 +12,7 @@ const BILLING_PAGE_URL = 'https://chatgpt.com/account/manage';
 const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36';
 
 const PLAN_LABELS = {
+    ...require('./plan-registry').PLAN_LABELS,
     plus: 'ChatGPT Plus',
     pro: 'ChatGPT Pro',
     team: 'ChatGPT Team',
@@ -35,6 +36,9 @@ function normalizeSubscriptionPlan(subPlan, hasActive) {
     if (!raw) {
         return hasActive ? 'unknown' : 'free';
     }
+    const token = raw.replace(/[\s_-]+/g, '');
+    const tier = { pro100: 'pro100', chatgptprolite: 'pro100', pro200: 'pro200', chatgptpro: 'pro200', pro500: 'pro500', chatgptpromax: 'pro500' }[token];
+    if (tier) return tier;
     if (raw.includes('team')) {
         return 'team';
     }

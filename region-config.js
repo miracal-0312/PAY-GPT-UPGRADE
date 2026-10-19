@@ -19,9 +19,10 @@ const SUPPORTED_REGIONS = Object.keys(REGION_CONFIG);
 const DEFAULT_REGION = 'PH';
 
 const PLAN_TYPE_LABELS = {
+    ...require('./plan-registry').PLAN_LABELS,
     plus: 'ChatGPT Plus',
-    pro_5x: 'ChatGPT Pro 5x',
-    pro_20x: 'ChatGPT Pro 20x'
+    pro_5x: 'ChatGPT Pro 5x（历史）',
+    pro_20x: 'ChatGPT Pro 20x（历史）'
 };
 
 /**

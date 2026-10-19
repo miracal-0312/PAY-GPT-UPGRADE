@@ -49,6 +49,9 @@ const REGION_CURRENT_COUNTRY_HINTS = {
 const SKIP_REGION_BUTTON_TEXT = /^(Upgrade|Personal|Business|Free|Plus|Pro|Subscribe|Close|Your current plan|升级|订阅|关闭)$/i;
 
 const PLAN_UPGRADE_TEST_IDS = Object.freeze({
+    pro100: 'select-plan-button-pro-upgrade',
+    pro200: 'select-plan-button-pro-upgrade',
+    pro500: 'select-plan-button-pro-upgrade',
     plus: 'select-plan-button-plus-upgrade',
     pro_5x: 'select-plan-button-pro-upgrade',
     pro_20x: 'select-plan-button-pro-upgrade'
@@ -58,6 +61,9 @@ const PRICING_PAGE_INITIAL_WAIT_MS = 5000;
 const PRICING_PAGE_READY_TIMEOUT_MS = 10000;
 
 const PRO_VARIANTS = Object.freeze({
+    pro100: { checkoutValue: 'chatgptprolite', pricingRadioLabel: null },
+    pro200: { checkoutValue: 'chatgptpro', pricingRadioLabel: null },
+    pro500: { checkoutValue: 'chatgptpromax', pricingRadioLabel: null },
     pro_5x: { checkoutValue: 'chatgptprolite', pricingRadioLabel: '5x' },
     pro_20x: { checkoutValue: 'chatgptpro', pricingRadioLabel: '20x' }
 });
@@ -118,7 +124,7 @@ const getProVariant = (planType) => PRO_VARIANTS[String(planType).trim().toLower
 const selectProVariantOnPricingPage = async (page, planType) => {
     const plan = String(planType).trim().toLowerCase();
     const variant = getProVariant(plan);
-    if (!variant) {
+    if (!variant || !variant.pricingRadioLabel) {
         return false;
     }
 
@@ -151,6 +157,7 @@ const selectProVariantOnCheckoutPage = async (page, planType) => {
     }
 
     const option = page.locator(`#${variant.checkoutValue}`);
+    await option.waitFor({ state: 'visible', timeout: 15000 });
     const count = await option.count();
     if (count !== 1) {
         throw new Error(`Checkout Pro 档位按钮数量异常: ${plan} / ${variant.checkoutValue} / ${count}`);

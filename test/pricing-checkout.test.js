@@ -45,6 +45,7 @@ const createProPricingPage = () => {
 
 const createProCheckoutPage = ({ count = 1, visible = true } = {}) => {
     const option = {
+        waitFor: async () => {},
         selected: false,
         count: async () => count,
         isVisible: async () => visible,
@@ -89,6 +90,9 @@ describe('pricing checkout plan button', () => {
 
     it('uses the verified test ids for Plus and Pro', () => {
         expect(PLAN_UPGRADE_TEST_IDS).toEqual({
+            pro100: 'select-plan-button-pro-upgrade',
+            pro200: 'select-plan-button-pro-upgrade',
+            pro500: 'select-plan-button-pro-upgrade',
             plus: 'select-plan-button-plus-upgrade',
             pro_5x: 'select-plan-button-pro-upgrade',
             pro_20x: 'select-plan-button-pro-upgrade'
@@ -97,6 +101,9 @@ describe('pricing checkout plan button', () => {
 
     it('maps each Pro CDK plan to its verified checkout option', () => {
         expect(PRO_VARIANTS).toEqual({
+            pro100: { checkoutValue: 'chatgptprolite', pricingRadioLabel: null },
+            pro200: { checkoutValue: 'chatgptpro', pricingRadioLabel: null },
+            pro500: { checkoutValue: 'chatgptpromax', pricingRadioLabel: null },
             pro_5x: { checkoutValue: 'chatgptprolite', pricingRadioLabel: '5x' },
             pro_20x: { checkoutValue: 'chatgptpro', pricingRadioLabel: '20x' }
         });

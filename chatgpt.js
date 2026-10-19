@@ -266,11 +266,14 @@ class ChatGPTService {
     getPlanAmount(planType, currency) {
         // 基础美元定价
         const baseAmounts = {
+            pro100: 100.00,
+            pro200: 200.00,
+            pro500: 500.00,
             plus: 20.00,
             pro_5x: 100.00,
             pro_20x: 200.00
         };
-        const amount = baseAmounts[planType] || baseAmounts.plus;
+        const amount = baseAmounts[require('./plan-registry').normalizePlanType(planType)];
 
         // 非 USD 币种的简单转换（实际金额由 Stripe 返回，这里仅用于记录参考）
         if (currency === 'SGD') return Math.round(amount * 1.35 * 100) / 100;
