@@ -7,6 +7,7 @@ const { installChatGptSession, bootstrapChatGptSession } = require('./session-au
 const { cancelAutoRenew } = require('./subscription-check');
 const { connectTaskBrowser, applyCdpEnv, closeTaskBrowser } = require('./browser-runtime');
 const { preparePlaywrightProxy } = require('./playwright-proxy');
+const { assertChileRequestCountry } = require('./proxy-region-check');
 const fs = require('fs');
 const path = require('path');
 
@@ -540,6 +541,7 @@ async function run() {
         }
 
         // --- Phase 2: API 创建 Checkout（注入账单地区），失败时回退 UI 定价页 ---
+        await assertChileRequestCountry(context, billingCountry);
         const checkoutMode = String(process.env.CHECKOUT_MODE || 'api').toLowerCase();
         let checkoutOpened = false;
         let checkoutResult = null;
