@@ -2383,6 +2383,7 @@
                             <option value="US">美国 (US) — USD</option>
                             <option value="SG">新加坡 (SG) — SGD</option>
                             <option value="MY">马来西亚 (MY) — MYR</option>
+                            <option value="CL">智利 (CL) — CLP</option>
                         </select>
                     </div>
                     <button class="btn btn-primary" style="margin-top: 20px;" onclick="savePaymentRegion()">
@@ -2705,6 +2706,7 @@ http://USER-session-{session}:PASS@proxy.example.com:1000"></textarea>
                             <option value="US">美国 (US) — USD</option>
                             <option value="SG">新加坡 (SG) — SGD</option>
                             <option value="MY">马来西亚 (MY) — MYR</option>
+                            <option value="CL">智利 (CL) — CLP</option>
                         </select>
                     </div>
                 </div>
@@ -8113,7 +8115,7 @@ http://USER-session-{session}:PASS@proxy.example.com:1000"></textarea>
         function onCheckoutRegionChange() {
             const sel = document.getElementById('checkout_region_selector');
             if (sel) currentRegion = sel.value || currentRegion;
-            const labels = { PH: '菲律宾 / PHP', US: '美国 / USD', SG: '新加坡 / SGD', MY: '马来西亚 / MYR' };
+            const labels = { PH: '菲律宾 / PHP', US: '美国 / USD', SG: '新加坡 / SGD', MY: '马来西亚 / MYR', CL: '智利 / CLP' };
             updateCheckoutRegionHint(labels[currentRegion] || currentRegion, '');
         }
 

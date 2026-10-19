@@ -10,35 +10,40 @@ const REGION_UI_LABELS = {
     PH: ['菲律宾', 'Philippines', 'Pilipinas'],
     US: ['美国', 'United States'],
     SG: ['新加坡', 'Singapore'],
-    MY: ['马来西亚', 'Malaysia']
+    MY: ['马来西亚', 'Malaysia'],
+    CL: ['Chile', '智利']
 };
 
 const REGION_CURRENCY_HINTS = {
     PH: ['₱'],
     US: ['$20', '$ 20'],
     SG: ['S$', 'SGD'],
-    MY: ['RM', 'MYR']
+    MY: ['RM', 'MYR'],
+    CL: ['CLP', 'CL$', '$']
 };
 
 const REGION_PRICE_PATTERNS = {
     PH: [/₱\s*[\d,.]+/, /[\d,.]+\s*₱/],
     US: [/\$\s*20(?:\.00)?/, /USD\s*20/i, /\$\s*[\d,.]+(?:\s*\/)?\s*(?:month|mo)/i],
     SG: [/S\$\s*[\d,.]+/, /[\d,.]+\s*SGD/i],
-    MY: [/RM\s*[\d,.]+/, /[\d,.]+\s*MYR/i]
+    MY: [/RM\s*[\d,.]+/, /[\d,.]+\s*MYR/i],
+    CL: [/\bCLP\s*\$?\s*[\d,.]+/i, /[\d,.]+\s*CLP\b/i, /CL\$\s*[\d,.]+/i]
 };
 
 const REGION_WRONG_CURRENCY = {
     PH: [/£\s*[\d,.]+/, /[\d,.]+\s*£/, /\bGBP\b/i, /United Kingdom/i, /Great Britain/i, /€\s*[\d,.]+/, /[\d,.]+\s*€/, /\bEUR\b/i],
     US: [/£\s*[\d,.]+/, /₱\s*[\d,.]+/, /\bGBP\b/i, /\bPHP\b/i, /S\$\s*[\d,.]+/, /RM\s*[\d,.]+/],
     SG: [/£\s*[\d,.]+/, /₱\s*[\d,.]+/, /\$\s*20(?:\.00)?\s*(?:USD|\/)/i, /RM\s*[\d,.]+/],
-    MY: [/£\s*[\d,.]+/, /₱\s*[\d,.]+/, /S\$\s*[\d,.]+/, /\$\s*20(?:\.00)?/]
+    MY: [/£\s*[\d,.]+/, /₱\s*[\d,.]+/, /S\$\s*[\d,.]+/, /\$\s*20(?:\.00)?/],
+    CL: [/£\s*[\d,.]+/, /€\s*[\d,.]+/, /₱\s*[\d,.]+/, /S\$\s*[\d,.]+/, /RM\s*[\d,.]+/, /\b(?:USD|GBP|EUR|PHP|SGD|MYR)\b/i, /US\$\s*[\d,.]+/i]
 };
 
 const REGION_CURRENT_COUNTRY_HINTS = {
     PH: [/菲律宾|Philippines|Pilipinas/i],
     US: [/United States|美国(?!地区)/i],
     SG: [/Singapore|新加坡/i],
-    MY: [/Malaysia|马来西亚/i]
+    MY: [/Malaysia|马来西亚/i],
+    CL: [/\bChile\b|智利/i]
 };
 
 const SKIP_REGION_BUTTON_TEXT = /^(Upgrade|Personal|Business|Free|Plus|Pro|Subscribe|Close|Your current plan|升级|订阅|关闭)$/i;
@@ -319,6 +324,9 @@ async function pageShowsTargetRegionPricing(page, regionCode) {
         return true;
     }
     if (hasCountryLabel && !hasWrongCurrency) {
+        if (code === 'CL') {
+            return /\$\s*\d[\d,.]*/.test(text);
+        }
         const looseHints = REGION_CURRENCY_HINTS[code] || [];
         if (looseHints.some((hint) => text.includes(hint))) {
             return true;
@@ -327,7 +335,7 @@ async function pageShowsTargetRegionPricing(page, regionCode) {
     return false;
 }
 
-const ALL_COUNTRY_NAME_PATTERN = /^(United Kingdom|Philippines|United States|Singapore|Malaysia|Afghanistan|Algeria|Andorra|Albania|Australia|Canada|Japan|China|菲律宾)$/i;
+const ALL_COUNTRY_NAME_PATTERN = /^(United Kingdom|Philippines|United States|Singapore|Malaysia|Chile|\u667a\u5229|Afghanistan|Algeria|Andorra|Albania|Australia|Canada|Japan|China|菲律宾)$/i;
 
 async function isRegionMenuOpen(page) {
     const viewport = page.locator('[data-radix-scroll-area-viewport]').last();
@@ -456,7 +464,7 @@ async function scrollVirtualCountryList(page, labels) {
     }).catch(() => {});
     await page.waitForTimeout(250);
 
-    const jumpRatio = targets.some((label) => /philippines|pilipinas|菲律宾/i.test(label)) ? 0.58 : 0.5;
+    const jumpRatio = targets.some((label) => /^(Chile|\u667a\u5229)$/i.test(label)) ? 0 : targets.some((label) => /philippines|pilipinas|菲律宾/i.test(label)) ? 0.58 : 0.5;
     await viewport.evaluate((node, ratio) => {
         node.scrollTop = Math.floor(node.scrollHeight * ratio);
     }, jumpRatio).catch(() => {});
@@ -618,7 +626,7 @@ async function tryKeyboardCountryFilter(page, label) {
 async function readSelectedCountryLabel(page) {
     const surface = await getPricingSurface(page);
     const trigger = surface.locator('button').filter({
-        hasText: /Philippines|United Kingdom|Algeria|United States|Singapore|Malaysia|Afghanistan|菲律宾/i
+        hasText: /Philippines|United Kingdom|Algeria|United States|Singapore|Malaysia|Chile|\u667a\u5229|Afghanistan|菲律宾/i
     }).last();
     if (await trigger.isVisible({ timeout: 1000 }).catch(() => false)) {
         return normalizeOptionText(await trigger.innerText().catch(() => ''));
@@ -629,7 +637,7 @@ async function readSelectedCountryLabel(page) {
 async function selectRegionOption(page, regionCode) {
     const code = String(regionCode || 'PH').toUpperCase();
     const labels = REGION_UI_LABELS[code] || [];
-    const preferredLabels = labels.filter((label) => label.length > 2);
+    const preferredLabels = labels.filter((label) => label.trim().length > 0);
 
     const search = page.locator('input[type="search"], input[placeholder*="Search" i], input[placeholder*="搜索" i]').first();
     if (await search.isVisible({ timeout: 1500 }).catch(() => false)) {

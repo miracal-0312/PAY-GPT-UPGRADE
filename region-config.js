@@ -8,7 +8,8 @@ const REGION_CONFIG = {
     PH: { currency: 'PHP', label: '菲律宾', locale: 'en-PH', timezone: 'Asia/Manila' },
     US: { currency: 'USD', label: '美国', locale: 'en-US', timezone: 'America/New_York' },
     SG: { currency: 'SGD', label: '新加坡', locale: 'en-SG', timezone: 'Asia/Singapore' },
-    MY: { currency: 'MYR', label: '马来西亚', locale: 'en-MY', timezone: 'Asia/Kuala_Lumpur' }
+    MY: { currency: 'MYR', label: '马来西亚', locale: 'en-MY', timezone: 'Asia/Kuala_Lumpur' },
+    CL: { currency: 'CLP', label: '智利', locale: 'es-CL', timezone: 'America/Santiago' }
 };
 
 /** 支持的地区代码列表 */

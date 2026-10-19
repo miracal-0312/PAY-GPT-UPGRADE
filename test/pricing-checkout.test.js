@@ -2,6 +2,7 @@
 
 const {
     PLAN_UPGRADE_TEST_IDS,
+    pageShowsTargetRegionPricing,
     PRO_VARIANTS,
     getUniqueVisiblePlanButton,
     isPricingPlanSelectorVisible,
@@ -65,6 +66,27 @@ const createProCheckoutPage = ({ count = 1, visible = true } = {}) => {
 };
 
 describe('pricing checkout plan button', () => {
+    it('recognizes Chilean prices without accepting ambiguous dollar prices', async () => {
+        const pageWithText = (text) => ({
+            locator: () => ({
+                first: () => ({ isVisible: async () => true, innerText: async () => text })
+            })
+        });
+        for (const text of ['CLP 19.990', '19.990 CLP', 'CL$19.990', 'Chile $19.990', '智利 $19.990']) {
+            await expect(pageShowsTargetRegionPricing(pageWithText(text), 'CL')).resolves.toBe(true);
+        }
+        for (const text of ['$20 / month', 'Chile USD $20', 'Chile US$20', 'Chile S$30', 'Chile $']) {
+            await expect(pageShowsTargetRegionPricing(pageWithText(text), 'CL')).resolves.toBe(false);
+        }
+    });
+
+    it('provides Chile billing and browser settings', () => {
+        const { isSupportedRegion, getRegionBilling, getRegionBrowserProfile } = require('../region-config');
+        expect(isSupportedRegion('cl')).toBe(true);
+        expect(getRegionBilling('CL')).toEqual({ country: 'CL', currency: 'CLP', label: '智利' });
+        expect(getRegionBrowserProfile('CL')).toEqual({ locale: 'es-CL', timezoneId: 'America/Santiago' });
+    });
+
     it('uses the verified test ids for Plus and Pro', () => {
         expect(PLAN_UPGRADE_TEST_IDS).toEqual({
             plus: 'select-plan-button-plus-upgrade',
