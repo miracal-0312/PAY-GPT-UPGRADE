@@ -564,7 +564,7 @@ async function run() {
             await selectProVariantOnCheckoutPage(page, planType);
         }
         if (debugOnly) {
-            const debugResult = await debugCheckoutCardAndAddress(page);
+            const debugResult = await debugCheckoutCardAndAddress(page, { billingEmail: loginInfo.email });
             if (debugResult.screenshot) console.log(`SUCCESS_SCREENSHOT: ${debugResult.screenshot}`);
             const checkoutUrl = checkoutResult?.checkoutUrl || page.url();
             console.log(`🔗 [调试] 支付链接: ${checkoutUrl}`);
@@ -584,7 +584,8 @@ async function run() {
             planType,
             cdkCode,
             email,
-            stripeSessionId
+            stripeSessionId,
+            billingEmail: loginInfo.email
         });
 
         if (paymentResult.success) {

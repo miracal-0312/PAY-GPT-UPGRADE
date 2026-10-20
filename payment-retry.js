@@ -64,7 +64,7 @@ async function resolveBilledAmountForRecord(page, paymentResult, preTaxAmount, c
  * @returns {Promise<{ success: boolean, error?: string, cardLast4?: string, manualIntervention?: boolean, screenshots?: string[] }>}
  */
 async function executePaymentWithRetry(page, options) {
-    const { planType, cdkCode, email, onProgress, stripeSessionId } = options || {};
+    const { planType, cdkCode, email, onProgress, stripeSessionId, billingEmail } = options || {};
 
     const progress = (msg) => {
         console.log(`[PaymentRetry] ${msg}`);
@@ -151,6 +151,7 @@ async function executePaymentWithRetry(page, options) {
         try {
             const paymentResult = await completeStripeCardPayment(page, cardInfo, address, {
                 cardAttempt,
+                billingEmail,
                 holderName: billingHolderName
             });
 
@@ -300,7 +301,7 @@ module.exports = {
     MAX_CARD_ATTEMPTS
 };
 
-async function debugCheckoutCardAndAddress(page) {
+async function debugCheckoutCardAndAddress(page, { billingEmail } = {}) {
     const lastUsedId = await store.getAppConfigValue('last_used_address_id', null);
     const address = await pickBillingAddressForCheckout(lastUsedId ? Number(lastUsedId) : null);
     const card = await store.reserveCard(`checkout_debug_${process.pid}_${Date.now()}`, []);
@@ -309,7 +310,7 @@ async function debugCheckoutCardAndAddress(page) {
         console.log(`[调试] 临时预留银行卡 ...${String(card.card_number || '').slice(-4)}，使用美国账单地址`);
         const result = await completeStripeCardPayment(page, {
             number: card.card_number, expiry: card.card_expiry, cvc: card.card_cvc, holder: card.card_holder
-        }, address, { stopBeforeSubmit: true });
+        }, address, { stopBeforeSubmit: true, billingEmail });
         if (!result.debugReady || result.submitted !== false) {
             throw new Error(result.error || '银行卡或账单地址填写调试失败');
         }

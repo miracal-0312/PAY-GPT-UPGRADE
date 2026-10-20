@@ -13,6 +13,7 @@
 const fs = require('fs');
 const path = require('path');
 const { CHECKOUT_SUBMIT_NAME, waitForCheckoutSubmit } = require('./checkout-submit');
+const { fillOptionalBillingEmail } = require('./billing-email');
 const {
     isHumanVerificationVisible,
     clearHumanVerification,
@@ -545,18 +546,26 @@ async function completeStripeCardPayment(page, cardInfo, address, options = {}) 
             return { success: false, error: fillResult.error || '无法定位信用卡输入框', screenshot: screenshotPath };
         }
 
+        console.log('[Stripe] 填卡完成，先等待 3 秒让账单表单加载...');
+        await page.keyboard.press('Tab').catch(() => {});
+        await page.waitForTimeout(3000);
+
         // 离开卡号 iframe，点击账单区确保主文档获得焦点
         await focusOpenAiBillingSection(page);
 
         // 等待账单地址区域出现（chatgpt.com/checkout 在填完卡号后才会展示）
         console.log('[Stripe] Step 5: 等待账单地址表单出现...');
-        await waitForBillingFields(page, 25000);
+        if (!await waitForBillingFields(page, 60000)) {
+            return { success: false, error: '填卡后等待账单地址表单超时：未检测到可编辑街道地址及国家控件，未开始填写地址',
+                screenshot: await saveDebugScreenshot(page, 'billing_fields_not_ready') };
+        }
         await page.waitForTimeout(1200);
 
         holderName = generateRandomName();
 
         // Step 6: Fill billing address (after card fields) — 仅填必填项
         console.log('[Stripe] Step 6: 填写账单地址与姓名...');
+        if (options.fillBillingEmail !== false) await fillOptionalBillingEmail(page, options.billingEmail);
         if (openAiCheckout) {
             const billingResult = await fillOpenAiCheckoutBilling(page, address, holderName);
             if (!billingResult.ok) {
@@ -648,6 +657,7 @@ async function completeStripeCardPayment(page, cardInfo, address, options = {}) 
         }
         }
 
+        if (options.fillBillingEmail !== false) await fillOptionalBillingEmail(page, options.billingEmail);
         checkoutDue = await captureCheckoutDueAmount(page, checkoutDue);
         if (checkoutDue?.amount) {
             console.log(`[Stripe] 提交前确认应付: ${checkoutDue.currency || ''} ${checkoutDue.amount}`);
@@ -1079,41 +1089,42 @@ async function waitForStripeFrame(page, selectors, timeout) {
     return null;
 }
 
-async function waitForBillingFields(page, timeout = 20000) {
-    // 原生 select 常被隐藏 → 用 count() 判断是否已挂载，而非 isVisible
-    const attachedSelectors = [
-        '#billingAddress-countryInput',
-        'select[name="country"]',
-        '#billingAddress-administrativeAreaInput',
-        'select[name="administrativeArea"]'
+async function waitForBillingFields(page, timeout = 60000) {
+    const streetSelectors = [
+        '#billingAddress-addressLine1Input', '#billingAddressLine1',
+        'input[name="addressLine1"]', 'input[name="billingAddressLine1"]',
+        'input[autocomplete="billing address-line1"]', 'input[autocomplete="address-line1"]',
+        'input[placeholder*="Address line 1" i]', 'input[placeholder*="Street" i]',
+        'input[placeholder*="\u5730\u5740\u7b2c1\u884c"]', 'input[placeholder*="\u5730\u5740\u7b2c 1 \u884c"]'
     ];
-    const visibleSelectors = [
-        '#billingAddress-nameInput',
-        'input[autocomplete="billing name"]',
-        'input[name="addressLine1"]',
-        'input[autocomplete="billing address-line1"]',
-        'input[autocomplete="address-line1"]',
-        '#billingAddressLine1'
+    const countrySelectors = [
+        '#billingAddress-countryInput', 'select[name="country"]',
+        'select[autocomplete="billing country"]', 'select[autocomplete="country"]',
+        '[role="combobox"][aria-label*="country" i]', '[role="combobox"][aria-label*="\u56fd\u5bb6"]'
     ];
     const deadline = Date.now() + timeout;
     while (Date.now() < deadline) {
-        for (const sel of attachedSelectors) {
-            try {
-                if ((await page.locator(sel).count()) > 0) {
-                    return true;
+        const contexts = typeof page.frames === 'function' ? page.frames() : [page];
+        for (const context of contexts) {
+            let hasCountry = false;
+            for (const selector of countrySelectors) {
+                if (await context.locator(selector).count().catch(() => 0) > 0) { hasCountry = true; break; }
+            }
+            if (!hasCountry) continue;
+            for (const selector of streetSelectors) {
+                const fields = context.locator(selector);
+                for (let i = 0; i < await fields.count().catch(() => 0); i++) {
+                    const field = fields.nth(i);
+                    if (await field.isVisible().catch(() => false) && await field.isEditable().catch(() => false)) {
+                        console.log('[Stripe] Billing street and country controls are ready; starting address fill.');
+                        return true;
+                    }
                 }
-            } catch (_) { /* continue */ }
-        }
-        for (const sel of visibleSelectors) {
-            try {
-                if (await page.locator(sel).first().isVisible({ timeout: 300 })) {
-                    return true;
-                }
-            } catch (_) { /* continue */ }
+            }
         }
         await page.waitForTimeout(500);
     }
-    console.warn('[Stripe] ⚠️ 账单地址字段未在超时内出现，将尝试继续填写');
+    console.warn('[Stripe] Billing form did not become ready; address fill stopped.');
     return false;
 }
 

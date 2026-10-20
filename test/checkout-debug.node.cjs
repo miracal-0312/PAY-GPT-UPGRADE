@@ -30,11 +30,12 @@ test('debug wrapper always releases card and never writes payment records', asyn
             './stripe-payment': { completeStripeCardPayment: async (page, card, address, options) => {
                 assert.equal(address.country, 'US');
                 assert.equal(options.stopBeforeSubmit, true);
+                assert.equal(options.billingEmail, 'current@example.com');
                 if (fails) throw new Error('fill failed');
                 return { debugReady: true, submitted: false };
             } }
         });
-        const run = sandbox.module.exports.debugCheckoutCardAndAddress({});
+        const run = sandbox.module.exports.debugCheckoutCardAndAddress({}, { billingEmail: 'current@example.com' });
         if (fails) await assert.rejects(run, /fill failed/);
         else assert.equal((await run).submitted, false);
         assert.equal(released, 1);
@@ -43,7 +44,10 @@ test('debug wrapper always releases card and never writes payment records', asyn
 
 test('filled debug flow cannot reach payment finalization, including environment guard', async () => {
     for (const viaEnv of [false, true]) {
-        const sandbox = loadModule('../stripe-payment', { './checkout-submit': { waitForCheckoutSubmit: async () => {} } }, { Buffer });
+        const sandbox = loadModule('../stripe-payment', {
+            './checkout-submit': { waitForCheckoutSubmit: async () => {} },
+            './billing-email': { fillOptionalBillingEmail: async () => ({ skipped: true }) }
+        }, { Buffer });
         sandbox.process.env.CHECKOUT_DEBUG_ONLY = viaEnv ? '1' : '';
         vm.runInNewContext(`
             dismissCheckoutPaymentError = async () => {};
